@@ -18,44 +18,45 @@ from scipy.ndimage import gaussian_filter
 
 class Inka:
     def __init__(self):
-        self.use3d = True
+        self.window_len = 10
+        self.use3d = False
         self.frames = None
+        self.trim_dims = {"top" : 50, "right" : 300, "bottom": 450, "left": 200}
         self.frames_filtered = None
         self.y = None
         self.y2 = None
         self.sr = None
-        self.frame_mean = None
-        self.frame_median = None
+        self.max_step = 1
         self.im_video = None
         self.im_video_proc = None
         self.line_audio = None
         self.line_audio_proc = None
         self.ani = None
-        self.frame_array = None
-        self.frame_array_filtered = None
         self.surface_ax = None
         self.surface_plot = None
         self.xx, self.yy = np.meshgrid(np.arange(0, 800, 1), np.arange(0, 600, 1))
         self.roi_size = 80//2
-        self.roi_cx = 490
-        self.roi_cy = 50
-        self.roi_color = (255, 255, 255)
+        self.roi_cx = 300
+        self.roi_cy = self.roi_size
+        self.roi_color = (255, 0, 0)
         self.roi_thickness = 2
         self.signal_x = [0]
         self.signal_y = [0]
         self.signal_plot = None
-        self.median_initial20 = None
 
         # --- load data
     def load_audio_and_video(self):
-        self.frames, self.frames_filtered = self.load_video_data()
+        self.frames, frames_filtered = self.load_video_data()
+        pads = self.trim_dims
+        shape = frames_filtered.shape
+        self.frames_filtered = frames_filtered[:, pads["top"]:shape[1] - pads["bottom"], pads["left"]:shape[2] - pads["right"]]
         self.y, self.sr = self.load_audio_data()
 
     @staticmethod
     def load_video_data():
         # todo: enter paths to dataset dir and video file 
-        path_dir = ...
-        video_filename = ...
+        path_dir = r"."
+        video_filename = r"video1.wmv"
 
         pickle_filename = video_filename[:-3] + 'p'
         path_video = os.path.join(path_dir, video_filename)
@@ -66,16 +67,12 @@ class Inka:
 
         if not is_pickle:
             vid = cv2.VideoCapture(path_video)
-            count = 0
-            count_max = 2000
             frames = []
             t_start = time.time()
             while True:
                 vid.grab()
                 retval, frame = vid.retrieve()
                 if not retval:
-                    break
-                if count > count_max:
                     break
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 frames.append(frame)
@@ -85,7 +82,7 @@ class Inka:
             print('gauss filtering...')
             # todo: implement gaussian filtering
             # this should be a list of filtered vieo frames
-            frames_filtered = ...
+            frames_filtered = list(map(lambda frame: cv2.GaussianBlur(frame, (7,7), 0), frames))
             print('gauss filtering finished')
 
             with open(path_pickle, 'wb') as handle:
@@ -99,12 +96,12 @@ class Inka:
             print('loaded frames from pickle: {}  ({:.2f} s.)'.format(len(frames), (time.time() - t_start)))
             print('loaded filtered frames from pickle: {}  ({:.2f} s.)'.format(len(frames_filtered), (time.time() - t_start)))
 
-        return frames, frames_filtered
+        return np.array(frames), np.array(frames_filtered)
 
     @staticmethod
     def load_audio_data():
         # todo: enter path to audio file
-        audio_path = ...
+        audio_path = r"audio1.wav"
         y, sr = librosa.load(audio_path, sr=16000)
         print('audio data loaded, len: ', len(y))
         return y, sr
@@ -118,7 +115,9 @@ class Inka:
     def butter_bandpass(lowcut, highcut, fs, order=5):
         # todo: implement bandpass butterworth filter
         # hint: normalize the low and highcuts using the sampling rate
-        b, a = ...
+        low = lowcut / fs
+        high = highcut / fs
+        b, a = butter(order, [low, high], btype='band')
         return b, a
 
     @staticmethod
@@ -127,28 +126,28 @@ class Inka:
         y = lfilter(b, a, data)
         return y
 
-    # --- video processing
-    def process_video(self):
-        self.frame_array = np.array(self.frames)
-        self.frame_array_filtered = np.array(self.frames_filtered)
-        self.median_initial20 = np.median(self.frame_array_filtered[:20, :, :], axis=0)
-
-    # @staticmethod
     def anim_process_frame(self, i):
+        if i == 0:
+            self.signal_x = []
+            self.signal_y = []
         frame = self.frames[i]
         frame_filtered = self.frames_filtered[i]
-        win_len = 20
-        start_idx = np.max([0, i - win_len])
+        start_idx = np.max([0, i - self.window_len])
         end_idx = np.max([1, i])
         # todo: calculate median of frames between start and end idxs
-        self.frame_median = ...
+        frame_median = np.median(self.frames_filtered[start_idx:end_idx, :, :], axis=0)
 
         # todo: calculate the difference between the filtered frames and the median
         # hint: normalize the frame values afterwards
-        frame_diff_median = ...
+        frame_diff_median = np.abs(frame_filtered - frame_median)
+        small, big = np.min(frame_diff_median), np.max(frame_diff_median)
+        if big > 0:
+            frame_diff_median = 255 * (frame_diff_median - small) / (big - small)
+        frame_diff_median = np.uint8(frame_diff_median)
+        threshold = 120
 
-        # todo: reduce low values to 0
-        ...
+        pads = (self.trim_dims["top"], self.trim_dims["bottom"]), (self.trim_dims["left"], self.trim_dims["right"])
+        frame_diff_median = np.lib.pad(frame_diff_median, pads, "constant", constant_values=0)
 
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
         frame_diff_median_rgb = cv2.applyColorMap(frame_diff_median, cv2.COLORMAP_AUTUMN)
@@ -159,39 +158,30 @@ class Inka:
         frame_rgb += frame_diff_median_rgb
 
         # todo: change the ROI descriptor
-        # --- tracking
-        # reinitialize
-        if i == 0:
-            self.signal_x = [0]
-            self.signal_y = [0]
-            self.roi_cx = 490
-            self.roi_cy = 50
-        if i > 20:
-            roi_x1 = self.roi_cx - self.roi_size
-            roi_x2 = self.roi_cx + self.roi_size
-            roi_y1 = self.roi_cy - self.roi_size
-            roi_y2 = self.roi_cy + self.roi_size
-            # roi = frame_diff_median[self.roi_x1:self.roi_x2, self.roi_y1:self.roi_y2]
-            roi = frame_diff_median[roi_y1:roi_y2, roi_x1:roi_x2]
-            self.roi_color = (255, 0, 0)
-            # # already after one thresholding, now just to binarize
-            ret_val, roi_binary = cv2.threshold(roi, 10, 255, cv2.THRESH_BINARY)
-            roi_moments = cv2.moments(roi_binary)
-            if roi_moments["m00"] != 0:
-                # print(roi_moments)
-                blob_cx = int(roi_moments["m10"] / roi_moments["m00"])
-                blob_cy = int(roi_moments["m01"] / roi_moments["m00"])
-                # print('blob bcx {} bcy {}'.format(blob_cx, blob_cy))
-                self.roi_cx = min(frame.shape[1], max(self.roi_size, roi_x1 + blob_cx))
-                self.roi_cy = min(frame.shape[0], max(self.roi_size, roi_y1 + blob_cy))
-            else:
-                pass
-            from_median_initial20_diff = np.abs(frame_filtered - self.median_initial20)
-            roi_no_tresh = from_median_initial20_diff[roi_y1:roi_y2, roi_x1:roi_x2]
-            roi_desc = np.sum(roi_no_tresh)/10000
-            self.signal_x.append(0.033 * i)
-            self.signal_y.append(roi_desc)
-            print('roi desc:', roi_desc)
+        
+        roi_x1 = self.roi_cx - self.roi_size
+        roi_x2 = self.roi_cx + self.roi_size 
+        roi_y1 = self.roi_cy - self.roi_size
+        roi_y2 = self.roi_cy + self.roi_size
+        # roi = frame_diff_median[self.roi_x1:self.roi_x2, self.roi_y1:self.roi_y2]
+        # moment_roi = frame_diff_median[roi_y1:roi_y2, roi_x1:roi_x2]
+        # # already after one thresholding, now just to binarize
+        tracking_mask = cv2.erode(frame_diff_median, (3,3), iterations=1)
+        tracking_mask = cv2.dilate(tracking_mask, (5,5))
+        tracking_mask[tracking_mask < 150] = 0
+        roi_moments = cv2.moments(tracking_mask)
+        if roi_moments["m00"] != 0:
+            blob_cx = int(roi_moments["m10"] / roi_moments["m00"])
+            blob_cy = int(roi_moments["m01"] / roi_moments["m00"])
+            diff_x = np.clip(blob_cx - self.roi_cx, -self.max_step, self.max_step)
+            diff_y = np.clip(blob_cy - self.roi_cy, -self.max_step, self.max_step)
+            self.roi_cx += diff_x
+            self.roi_cy += diff_y
+        roi = frame[roi_y1:roi_y2, roi_x1:roi_x2]
+        roi_desc = np.sum(roi)/100000
+        self.signal_x.append(0.033 * i)
+        self.signal_y.append(roi_desc)
+        print('roi desc:', roi_desc)
 
         # --- draw roi
         roi_x1 = self.roi_cx - self.roi_size
@@ -200,8 +190,6 @@ class Inka:
         roi_y2 = self.roi_cy + self.roi_size
         roi_start = (roi_x2 - 1, roi_y1)
         roi_end = (roi_x1, roi_y2 - 1)
-        # print(roi_start)
-        # print(roi_end)
         frame_rgb = cv2.rectangle(frame_rgb, roi_start, roi_end, self.roi_color, self.roi_thickness)
 
 
@@ -214,12 +202,16 @@ class Inka:
             self.surface_plot.remove()
             self.surface_plot = self.surface_ax.plot_surface(self.xx, self.yy, zz, linewidth=0, antialiased=False, cmap=cm.plasma)
 
+
+        tracking_mask_rgb =  cv2.applyColorMap(cv2.cvtColor(tracking_mask, cv2.COLOR_BGR2RGB), cv2.COLORMAP_DEEPGREEN)
+        tracking_mask_rgb = cv2.rectangle(tracking_mask_rgb, roi_start, roi_end, self.roi_color, self.roi_thickness)
+
         # --- set plots
         # im_video.set_array(frame)
         self.im_video.set_array(frame_rgb)
         if not self.use3d:
             # self.im_video_proc.set_array(frame_diff_median)
-            self.im_video_proc.set_array(frame_diff_median_rgb)
+            self.im_video_proc.set_array(tracking_mask_rgb)
         self.line_audio.set_xdata(0.033 * i)
         self.line_audio_proc.set_xdata(0.033 * i)
         self.signal_plot.set_xdata(self.signal_x)
@@ -282,16 +274,14 @@ class Inka:
         self.ani = animation.FuncAnimation(fig, self.anim_process_frame,
                                   # fargs=(frames, frame_median, im_video, im_video_proc, line_audio, line_audio_proc),
                                   frames=len(self.frames),
-                                  interval=0.1,
+                                  interval=0.05,
                                   blit=True)
         plt.show()
 
 
 if __name__ == '__main__':
-
     inka = Inka()
     inka.load_audio_and_video()
-    inka.process_video()
     inka.process_audio()
     inka.display_video_and_audio()
 

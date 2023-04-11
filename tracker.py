@@ -18,7 +18,8 @@ from scipy.ndimage import gaussian_filter
 
 class Inka:
     def __init__(self):
-        self.use3d = True
+        self.roi_descriptor_type = "max" # avg, max, median 
+        self.use3d = False
         self.frames = None
         self.frames_filtered = None
         self.y = None
@@ -54,8 +55,8 @@ class Inka:
     @staticmethod
     def load_video_data():
         # todo: enter paths to dataset dir and video file 
-        path_dir = ...
-        video_filename = ...
+        path_dir = r"."
+        video_filename = r"video1.wmv"
 
         pickle_filename = video_filename[:-3] + 'p'
         path_video = os.path.join(path_dir, video_filename)
@@ -85,7 +86,7 @@ class Inka:
             print('gauss filtering...')
             # todo: implement gaussian filtering
             # this should be a list of filtered vieo frames
-            frames_filtered = ...
+            frames_filtered = list(map(lambda frame: cv2.GaussianBlur(frame, (5,5), 0), frames))
             print('gauss filtering finished')
 
             with open(path_pickle, 'wb') as handle:
@@ -104,7 +105,7 @@ class Inka:
     @staticmethod
     def load_audio_data():
         # todo: enter path to audio file
-        audio_path = ...
+        audio_path = r"audio1.wav"
         y, sr = librosa.load(audio_path, sr=16000)
         print('audio data loaded, len: ', len(y))
         return y, sr
@@ -118,7 +119,9 @@ class Inka:
     def butter_bandpass(lowcut, highcut, fs, order=5):
         # todo: implement bandpass butterworth filter
         # hint: normalize the low and highcuts using the sampling rate
-        b, a = ...
+        low = lowcut / fs
+        high = highcut / fs
+        b, a = butter(order, [low, high], btype='band')
         return b, a
 
     @staticmethod
@@ -141,14 +144,17 @@ class Inka:
         start_idx = np.max([0, i - win_len])
         end_idx = np.max([1, i])
         # todo: calculate median of frames between start and end idxs
-        self.frame_median = ...
+        frame_median = np.median(self.frame_array_filtered[start_idx:end_idx, :, :], axis=0)
 
         # todo: calculate the difference between the filtered frames and the median
         # hint: normalize the frame values afterwards
-        frame_diff_median = ...
+        frame_diff_median = np.abs(frame_filtered - frame_median)
+        frame_diff_median -= np.min(frame_diff_median)
+        frame_diff_median = np.uint8(255 * frame_diff_median / np.max(frame_diff_median))
 
         # todo: reduce low values to 0
-        ...
+        frame_diff_median[frame_diff_median < 50] = 0
+        threshold = 120
 
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
         frame_diff_median_rgb = cv2.applyColorMap(frame_diff_median, cv2.COLORMAP_AUTUMN)
@@ -188,7 +194,17 @@ class Inka:
                 pass
             from_median_initial20_diff = np.abs(frame_filtered - self.median_initial20)
             roi_no_tresh = from_median_initial20_diff[roi_y1:roi_y2, roi_x1:roi_x2]
-            roi_desc = np.sum(roi_no_tresh)/10000
+            
+            if self.roi_descriptor_type == "avg":
+                roi_desc = np.sum(roi_no_tresh)/self.roi_size**2 / 255
+            elif self.roi_descriptor_type == "max":
+                roi_desc = np.max(roi_no_tresh) / 255
+            elif self.roi_descriptor_type == "median":
+                roi_desc = np.median(roi_no_tresh) / 255
+            else:
+                raise ValueError("Invalid roi descriptor mode: " + self.roi_descriptor_type)
+            
+            roi_desc *= 15
             self.signal_x.append(0.033 * i)
             self.signal_y.append(roi_desc)
             print('roi desc:', roi_desc)

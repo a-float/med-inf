@@ -18,9 +18,12 @@ class MainWindow():
         #todo: from ds get windowWidth and windowCenter
         self.win_center = self.ds.WindowCenter
         self.win_width = self.ds.WindowWidth
-
         print(f"Window: width={self.win_width}, center={self.win_center}")
-        print(np.min(MainWindow.data), np.max(MainWindow.data))
+
+        # distance measurement
+        self.line = None
+        self.prev_mouse = None
+        self.spacing = self.ds.PixelSpacing # in mm/px
 
         # prepare canvas
         self.canvas = Canvas(main, width=512, height=512)
@@ -51,14 +54,15 @@ class MainWindow():
 
     def init_window(self, event):
         # todo: save mouse position
-        print("x: " + str(event.x) + " y: " + str(event.y))
+        # print("x: " + str(event.x) + " y: " + str(event.y))
+        pass
 
     def update_window(self, event):
         # todo: modify window width and center
-        print("x: " + str(event.x) + " y: " + str(event.y))
+        # print("x: " + str(event.x) + " y: " + str(event.y))
         width = self.win_width * event.x // self.data.shape[0]
         center = self.win_center * event.y // self.data.shape[1]
-        print(width, center, self.win_width, self.win_center)
+        # print(width, center, self.win_width, self.win_center)
         self.array2 = self.transform_data(self.data, width, center)
         self.image2 = Image.fromarray(self.array2)
         self.image2 = self.image2.resize((512, 512), Image.ANTIALIAS)
@@ -69,16 +73,30 @@ class MainWindow():
         # todo: save mouse position
         # todo: create line
         # hint: self.canvas.create_line(...)
-        print("x: " + str(event.x) + " y: " + str(event.y))
+        # print("x: " + str(event.x) + " y: " + str(event.y))
+        self.prev_mouse = event.x, event.y
+        self.line = self.canvas.create_line(event.x, event.y, event.x, event.y, fill="red", width=3)
 
     def update_measurement(self, event):
         # todo: update line
         # hint: self.canvas.coords(...)
-        print("x: " + str(event.x) + " y: " + str(event.y))
+        # print("x: " + str(event.x) + " y: " + str(event.y))
+        self.canvas.coords(self.line, self.prev_mouse[0], self.prev_mouse[1], event.x, event.y)
 
     def finish_measurement(self, event):
         # todo: print measured length in mm
-        print("x: " + str(event.x) + " y: " + str(event.y))
+        # print("x: " + str(event.x) + " y: " + str(event.y))
+        diff_x = event.x - self.prev_mouse[0]
+        diff_y = event.y - self.prev_mouse[1]
+        dist = np.sqrt((diff_x * self.spacing[0])**2 + (diff_y * self.spacing[1])**2)
+        print(f"Measured {round(dist, 3)}mm")
+        angle = np.arctan2(diff_x, diff_y) * 180 / np.pi + 90
+        if angle > 90 or angle > 270:
+            angle = angle + 180
+
+        mid_x = event.x - diff_x / 2 - 13 * np.sin(angle / 180 * np.pi)
+        mid_y = event.y - diff_y / 2 - 13 * np.cos(angle / 180 * np.pi)
+        self.canvas.create_text(mid_x, mid_y, anchor="center", text=f"{round(dist)}", angle=angle, fill="red", font='Helvetica 10 bold', justify="center")
 
 
 

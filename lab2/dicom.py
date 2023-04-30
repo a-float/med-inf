@@ -3,6 +3,7 @@
 
 import pydicom
 from tkinter import *
+import numpy as np
 from PIL import Image, ImageTk
 
 class MainWindow():
@@ -15,6 +16,11 @@ class MainWindow():
         print(self.ds.PatientName)
 
         #todo: from ds get windowWidth and windowCenter
+        self.win_center = self.ds.WindowCenter
+        self.win_width = self.ds.WindowWidth
+
+        print(f"Window: width={self.win_width}, center={self.win_center}")
+        print(np.min(MainWindow.data), np.max(MainWindow.data))
 
         # prepare canvas
         self.canvas = Canvas(main, width=512, height=512)
@@ -27,8 +33,7 @@ class MainWindow():
 
         # load image
         # todo: apply transform
-        #self.array = self.transform_data(self.data, self.winWidth, self.winCenter)
-        self.array = self.data
+        self.array = self.transform_data(self.data, self.win_width, self.win_center)
         self.image = Image.fromarray(self.array)
         self.image = self.image.resize((512, 512), Image.ANTIALIAS)
         self.img = ImageTk.PhotoImage(image=self.image, master=root)
@@ -36,7 +41,13 @@ class MainWindow():
 
     def transform_data(self, data, window_width, window_center):
         # todo: transform data (apply window width and center)
-        return data
+        img_min = max(0, window_center - window_width//2)
+        img_max = window_center + window_width//2
+        cp = data.copy()
+        cp[data < img_min] = img_min
+        cp[data > img_max] = img_max
+        cp = (cp - img_min) / (img_max - img_min) * 255
+        return cp
 
     def init_window(self, event):
         # todo: save mouse position
@@ -45,11 +56,14 @@ class MainWindow():
     def update_window(self, event):
         # todo: modify window width and center
         print("x: " + str(event.x) + " y: " + str(event.y))
-        #self.array2 = self.transform_data(self.data, self.winWidth, self.winCenter)
-        #self.image2 = Image.fromarray(self.array2)
-        #self.image2 = self.image2.resize((512, 512), Image.ANTIALIAS)
-        #self.img2 = ImageTk.PhotoImage(image=self.image2, master=root)
-        #self.canvas.itemconfig(self.image_on_canvas, image = self.img2)
+        width = self.win_width * event.x // self.data.shape[0]
+        center = self.win_center * event.y // self.data.shape[1]
+        print(width, center, self.win_width, self.win_center)
+        self.array2 = self.transform_data(self.data, width, center)
+        self.image2 = Image.fromarray(self.array2)
+        self.image2 = self.image2.resize((512, 512), Image.ANTIALIAS)
+        self.img2 = ImageTk.PhotoImage(image=self.image2, master=root)
+        self.canvas.itemconfig(self.image_on_canvas, image = self.img2)
 
     def init_measurement(self, event):
         # todo: save mouse position

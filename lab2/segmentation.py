@@ -22,13 +22,14 @@ def pixel_neighbours(image, y: int, x: int, NEIGHBOURS_WIDTH: int, type='') -> l
     ]
 
 
-def in_segment_condition(image, segment_area, start_pixel_value: int, neighbour_pixel_value: int, central_pixel_value: int, type='init_abs') -> bool:
+def in_segment_condition(image, segment_area, start_pixel_value: int,
+                         neighbour_pixel_value: int, central_pixel_value: int, type='init_abs') -> bool:
     if type == 'init_abs':
-        return np.abs(start_pixel_value - neighbour_pixel_value) <= 40
+        return np.abs(start_pixel_value - neighbour_pixel_value) <= INIT_ABS_THRESHOLD
     elif type == 'segment_avg':
-        return np.abs(np.average(image[segment_area]) - neighbour_pixel_value) <= 15
+        return np.abs(np.average(image[segment_area]) - neighbour_pixel_value) <= SEGMENT_AVG_THRESHOLD
     elif type == 'central_abs':
-        return np.abs(central_pixel_value - neighbour_pixel_value) <= 80
+        return np.abs(central_pixel_value - neighbour_pixel_value) <= CENTRAL_ABS_THRESHOLD
     elif type == 'segment_var':
         return np.abs(start_pixel_value - neighbour_pixel_value) < np.var(image[segment_area])
 
@@ -51,7 +52,8 @@ def area_expansion_segmentation(image, start_y: int, start_x: int, NEIGHBOURS_WI
             neighbour_pixel_value = image[neighbour_y, neighbour_x]
             if not visited[neighbour_y, neighbour_x]:
                 visited[neighbour_y, neighbour_x] = True
-                if in_segment_condition(image, segment_area, start_pixel_value, neighbour_pixel_value, central_pixel_value, type='init_abs'):
+                if in_segment_condition(image, segment_area, start_pixel_value,
+                                        neighbour_pixel_value, central_pixel_value, type='init_abs'):
                     segment_area[neighbour_y, neighbour_x] = True
                     central_pixels.append((neighbour_y, neighbour_x))
 

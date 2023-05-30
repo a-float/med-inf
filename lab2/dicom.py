@@ -55,8 +55,6 @@ class MainWindow():
         return cp
 
     def init_window(self, event):
-        # todo: save mouse position
-        # print("x: " + str(event.x) + " y: " + str(event.y))
         pass
 
     def update_window(self, event):
@@ -69,10 +67,6 @@ class MainWindow():
         self.canvas.itemconfig(self.image_on_canvas, image=self.img2)
 
     def init_measurement(self, event):
-        # todo: save mouse position
-        # todo: create line
-        # hint: self.canvas.create_line(...)
-        # print("x: " + str(event.x) + " y: " + str(event.y))
         self.prev_mouse = event.x, event.y
         self.line = self.canvas.create_line(
             event.x, event.y, event.x, event.y, fill="red", width=3)

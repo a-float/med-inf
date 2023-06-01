@@ -140,12 +140,12 @@ def build_slider_rep(
 ) -> vtkSliderRepresentation2D:
     slider_rep = vtkSliderRepresentation2D()
     slider_rep.GetPoint1Coordinate().SetCoordinateSystemToNormalizedDisplay()
-    slider_rep.GetPoint1Coordinate().SetValue(x - 0.12, 0.05)
+    slider_rep.GetPoint1Coordinate().SetValue(x - 0.15, 0.05)
     slider_rep.GetPoint2Coordinate().SetCoordinateSystemToNormalizedDisplay()
-    slider_rep.GetPoint2Coordinate().SetValue(x + 0.12, 0.05)
+    slider_rep.GetPoint2Coordinate().SetValue(x + 0.15, 0.05)
     slider_rep.SetMinimumValue(image_range[0])
     slider_rep.SetMaximumValue(image_range[1])
-    slider_rep.SetEndCapWidth(0.01)
+    slider_rep.SetEndCapWidth(0.03)
     slider_rep.SetTitleHeight(0.02)
     slider_rep.SetValue(value)
     slider_rep.SetTitleText(label)
@@ -169,7 +169,6 @@ def build_volume_actor(
 ) -> vtkVolume:
     volume_property = vtkVolumeProperty()
     volume_property.ShadeOff()
-    # volumeProperty.SetInterpolationType(VTK_LINEAR_INTERPOLATION)
     volume_property.SetInterpolationTypeToLinear()
     volume_property.SetScalarOpacity(composite_opacity)  # composite first.
 
@@ -231,9 +230,9 @@ if __name__ == "__main__":
     ys = [0, 0.2, 0]
     colors = [[0, 0, 1], [1, 0, 0], [1, 1, 1]]
     slider_reps = [
-        build_slider_rep(x=0.15, value=xs[0], label="start", image_range=image_range),
+        build_slider_rep(x=0.17, value=xs[0], label="start", image_range=image_range),
         build_slider_rep(x=0.5, value=xs[1], label="mid", image_range=image_range),
-        build_slider_rep(x=0.85, value=xs[2], label="end", image_range=image_range),
+        build_slider_rep(x=0.83, value=xs[2], label="end", image_range=image_range),
     ]
     sliders = [vtkSliderWidget() for _ in range(3)]
     for i, slider in enumerate(sliders):
@@ -252,18 +251,6 @@ if __name__ == "__main__":
                 color_function=color_function,
             ),
         )
-
-    # maybe needed later
-    # volume_color = vtkColorTransferFunction()
-    # volume_color.AddRGBPoint(0, 0.0, 0.0, 0.0)
-    # volume_color.AddRGBPoint(500, 1.0, 0, 0)
-    # volume_color.AddRGBPoint(1000, 1.0, 0, 0)
-    # volume_property = vtkVolumeProperty()
-    # volume_property.SetColor(volume_color)
-
-    # volume = vtkVolume()
-    # volume.SetProperty(volume_property)
-    # renderer.AddVolume(volume)
 
     render_window.SetSize(500, 500)
     render_window.Render()
